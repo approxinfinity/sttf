@@ -12,7 +12,13 @@ var playerSchema = new mongoose.Schema({
         last:  { type: String, trim: true, required: true }
     },
 
-    rank: Number
+    email: { type: String, trim: true, required: true },
+
+    nickname: { type: String, default: '' },
+
+    rank: Number,
+
+    createDate: { type: Date, default: Date.now }
 });
 
 
@@ -22,18 +28,39 @@ playerSchema.virtual('name.full').get(function () {
 });
 
 
+// validators
+playerSchema.path('email').validate(function (email) {
+    return email.length;
+}, 'Email cannot be blank');
+
+playerSchema.path('email').validate(function (email, fn) {
+    var Player = mongoose.model('Player');
+
+    // Check only when it is a new user or when email field is modified
+    if (this.isNew || this.isModified('email')) {
+        Player.find({ email: email }).exec(function (err, players) {
+            fn(!err && players.length === 0);
+        })
+    } else {
+        fn(true);
+    }
+}, 'Email already exists');
+
+
 // pre-save hook
 playerSchema.pre('save', function(next) {
     // existing player, move on
-    if (!this.isNew) return next();
+    if (!this.isNew) next();
 
     // automatically rank the player at the bottom of the ladder
+    var self = this;
     var Player = mongoose.model('Player');
     Player.count(function (err, count) {
-        if (!err) this.rank = count + 1;
-    });
+        if (!err)
+            self.rank = count + 1;
 
-    return next();
+        next();
+    });
 });
 
 
